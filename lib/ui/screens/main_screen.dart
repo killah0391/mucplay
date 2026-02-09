@@ -68,13 +68,15 @@ class _MainScreenState extends State<MainScreen>
   // NEU: Die Screens, zwischen denen gewechselt wird
   // final List<Widget> _screens = [const LibraryScreen(), const SettingsScreen()];
 
-  void _handleWidgetLaunch(Uri? uri) {
-    if (uri != null && uri.toString() == "mucplay://settings/widget") {
-      // Optional: Erst alles andere schließen, damit wir nicht 10x Settings offen haben
-      Navigator.of(context).popUntil((route) => route.isFirst);
-
+  void _handleLoadFromWidget(Uri? uri) {
+    // Prüfen, ob eine URI da ist und ob sie unser "settings" Ziel hat
+    if (uri != null && uri.toString().contains("settings")) {
+      // Manuelle Navigation zum Screen starten
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const PlayerThemeSettingsScreen()),
+        MaterialPageRoute(
+          builder: (context) =>
+              const PlayerThemeSettingsScreen(), // <--- Hier verweist du auf deinen Screen
+        ),
       );
     }
   }
@@ -99,8 +101,8 @@ class _MainScreenState extends State<MainScreen>
       }
     });
     HomeWidget.registerInteractivityCallback(backgroundCallback);
-    HomeWidget.initiallyLaunchedFromHomeWidget().then(_handleWidgetLaunch);
-    HomeWidget.widgetClicked.listen(_handleWidgetLaunch);
+    HomeWidget.initiallyLaunchedFromHomeWidget().then(_handleLoadFromWidget);
+    HomeWidget.widgetClicked.listen(_handleLoadFromWidget);
 
     _checkConfigurationLaunch();
   }
