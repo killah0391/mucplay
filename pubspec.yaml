@@ -1,0 +1,59 @@
+name: mucplay
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management & DI
+  provider:
+  get_it:
+
+  # Speicher & Datenbank
+  shared_preferences:
+  hive:
+  hive_flutter:
+  path_provider:
+
+  # Audio & Files
+  audio_service:
+  audioplayers:
+  audiotags:
+  id3:
+  file_picker:
+  permission_handler:
+  volume_controller:
+  ffmpeg_kit_flutter_new_audio:
+
+  # UI & Design
+  google_fonts:
+  flutter_svg:
+  palette_generator:
+  glassmorphism:
+  text_scroll:
+  image_picker:
+  dynamic_color:
+  share_plus:
+  screenshot:
+  audio_session:
+  home_widget:
+  flutter_colorpicker:
+
+  # Utils
+  crypto:
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # Wichtig für Hive Code Generation:
+  build_runner:
+  hive_generator:
+
+flutter:
+  uses-material-design: true
