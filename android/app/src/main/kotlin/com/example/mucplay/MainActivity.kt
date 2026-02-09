@@ -6,22 +6,24 @@ import android.content.Intent
 import android.os.Bundle
 import com.ryanheise.audioservice.AudioServiceActivity
 
-// WICHTIG: Erbt jetzt von AudioServiceActivity statt FlutterActivity
 class MainActivity: AudioServiceActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handleWidgetConfiguration()
+        // Check beim Kaltstart
+        handleWidgetConfiguration(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
+        // 1. ZUERST den Intent prüfen und ggf. umschreiben
+        handleWidgetConfiguration(intent)
+
+        // 2. DANN den manipulierten Intent an das System/Plugins weitergeben
         super.onNewIntent(intent)
         setIntent(intent)
-        handleWidgetConfiguration()
     }
 
-    private fun handleWidgetConfiguration() {
-        val intent = intent
+    private fun handleWidgetConfiguration(intent: Intent) {
         val extras = intent.extras
 
         if (extras != null) {
@@ -30,19 +32,20 @@ class MainActivity: AudioServiceActivity() {
                 AppWidgetManager.INVALID_APPWIDGET_ID
             )
 
+            // Wenn es ein "Konfigurieren"-Aufruf von Android ist:
             if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                // 1. Android sagen: "Alles OK, Widget darf bleiben"
+
+                // A. Android Bescheid geben: "Widget ist OK"
                 val resultValue = Intent()
                 resultValue.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 setResult(Activity.RESULT_OK, resultValue)
 
-                // 2. Intent manipulieren, damit home_widget ihn erkennt
-                // Wir setzen die Action auf LAUNCH, damit Flutter denkt, das Widget wurde geklickt
+                // B. Intent manipulieren ("Hack"), damit Flutter denkt, es sei ein Klick
+                // Wir ändern die Action zu dem, was home_widget erwartet:
                 intent.action = "es.antonborri.home_widget.action.LAUNCH"
-                intent.data = android.net.Uri.parse("mucplay://settings/widget")
 
-                // Intent aktualisieren (Wichtig für onNewIntent in Flutter)
-                setIntent(intent)
+                // Wir fügen unsere Settings-URI hinzu
+                intent.data = android.net.Uri.parse("mucplay://settings/widget")
             }
         }
     }

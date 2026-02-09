@@ -28,22 +28,20 @@ class MusicWidgetProvider : HomeWidgetProvider() {
 
                 // 2. Farben laden (Long -> Int Konvertierung nicht vergessen!)
                 val colorLong = widgetData.getLong("widgetColor", 0xFF1E1E1E)
-                val onColorLong = widgetData.getLong("widgetOnColor", 0xFFFFFFFF)       // NEU
-                val artistColorLong = widgetData.getLong("widgetArtistColor", 0xFFCCCCCC) // NEU
+                val onColorLong = widgetData.getLong("widgetOnColor", 0xFFFFFFFF)
+                val artistColorLong = widgetData.getLong("widgetArtistColor", 0xFFCCCCCC)
 
+                // Umwandeln
                 val color = colorLong.toInt()
                 val onColor = onColorLong.toInt()
                 val artistColor = artistColorLong.toInt()
 
-                // 3. Hintergrund färben
+                // Farben setzen
                 setInt(R.id.widget_background, "setColorFilter", color)
+                setTextColor(R.id.widget_title, onColor)
+                setTextColor(R.id.widget_artist, artistColor)
 
-                // 4. Texte färben (setTextColor)
-                setTextColor(R.id.widget_title, onColor)       // Titel in onPrimary
-                setTextColor(R.id.widget_artist, artistColor)  // Artist etwas blasser
-
-                // 5. Icons färben (setColorFilter)
-                // Damit passen sich die Buttons auch an (z.B. Schwarz auf Weißem Grund)
+                // Icons färben
                 setInt(R.id.btn_prev, "setColorFilter", onColor)
                 setInt(R.id.btn_play, "setColorFilter", onColor)
                 setInt(R.id.btn_next, "setColorFilter", onColor)
@@ -63,8 +61,20 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                 setOnClickPendingIntent(R.id.btn_next, getMediaButtonIntent(context, KeyEvent.KEYCODE_MEDIA_NEXT))
                 setOnClickPendingIntent(R.id.btn_prev, getMediaButtonIntent(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
 
-                val openAppIntent = HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java)
-                setOnClickPendingIntent(R.id.widget_title, openAppIntent)
+                val intent = Intent(context, MainActivity::class.java)
+                intent.action = Intent.ACTION_MAIN
+                intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                // Diese Flags sind entscheidend bei singleTask:
+                intent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+
+                val openAppPendingIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                setOnClickPendingIntent(R.id.widget_title, openAppPendingIntent)
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)

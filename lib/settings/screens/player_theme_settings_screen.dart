@@ -219,12 +219,10 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
     return provider.widgetColorMode;
   }
 
-  // Ruft die updateWidget Methode im Handler auf
-  // (Dafür musst du _updateHomeWidget in AudioPlayerHandler zu updateWidget umbenannt haben!)
   void _updateWidgetNow() {
     try {
       final handler = locator<AudioHandler>();
-      // Wir casten auf deine Klasse, um die spezielle Methode aufzurufen
+      // Casten auf deine Klasse, da updateWidget dort public ist
       if (handler is AudioPlayerHandler) {
         handler.updateWidget();
       }

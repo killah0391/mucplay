@@ -529,7 +529,6 @@ class AudioPlayerHandler extends BaseAudioHandler
         'widget_custom_color',
         defaultValue: 0xFF1E1E1E,
       );
-      // Kontrast berechnen (Schwarz oder Weiß)
       final brightness = ThemeData.estimateBrightnessForColor(
         Color(colorValue),
       );
@@ -548,8 +547,9 @@ class AudioPlayerHandler extends BaseAudioHandler
       );
 
       if (forceBold) {
-        // Kräftige Farben (Raw)
+        // OPTION AN (Kräftig): Hintergrund = Akzentfarbe
         colorValue = accentColorInt;
+
         final brightness = ThemeData.estimateBrightnessForColor(
           Color(colorValue),
         );
@@ -557,16 +557,18 @@ class AudioPlayerHandler extends BaseAudioHandler
         onColorValue = isDark ? Colors.white.value : Colors.black.value;
         artistColorValue = isDark ? Colors.white70.value : Colors.black54.value;
       } else {
-        // Material 3 Logic (Sanfter)
-        // Wir generieren ein Schema basierend auf der Akzentfarbe
+        // OPTION AUS (Dezent): Hintergrund = Dunkelgrau, Icons = Akzentfarbe
         final scheme = ColorScheme.fromSeed(
           seedColor: Color(accentColorInt),
           brightness: Brightness.dark,
         );
 
-        colorValue = scheme.primary.value; // Hintergrund
-        onColorValue = scheme.onPrimary.value; // Text/Icons (Passend dazu!)
-        artistColorValue = scheme.onPrimary.withOpacity(0.7).value;
+        // FIX: Hintergrund ist dunkel (Surface), nicht Primary!
+        colorValue = const Color(0xFF1E1E1E).value;
+
+        // FIX: Icons sind farbig (Primary)
+        onColorValue = scheme.primary.value;
+        artistColorValue = scheme.primary.withOpacity(0.7).value;
       }
     } else {
       // 3. DARK / STANDARD
@@ -575,7 +577,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       artistColorValue = Colors.white70.value;
     }
 
-    // --- DATEN SPEICHERN ---
     await HomeWidget.saveWidgetData<String>(
       'title',
       item?.title ?? 'Kein Titel',
@@ -586,13 +587,9 @@ class AudioPlayerHandler extends BaseAudioHandler
     );
     await HomeWidget.saveWidgetData<bool>('isPlaying', playing);
 
-    // Farben senden (als Int)
     await HomeWidget.saveWidgetData<int>('widgetColor', colorValue);
-    await HomeWidget.saveWidgetData<int>('widgetOnColor', onColorValue); // NEU
-    await HomeWidget.saveWidgetData<int>(
-      'widgetArtistColor',
-      artistColorValue,
-    ); // NEU
+    await HomeWidget.saveWidgetData<int>('widgetOnColor', onColorValue);
+    await HomeWidget.saveWidgetData<int>('widgetArtistColor', artistColorValue);
 
     await HomeWidget.updateWidget(
       name: 'MusicWidgetProvider',
