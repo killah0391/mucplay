@@ -60,6 +60,8 @@ class _MainScreenState extends State<MainScreen>
   final GlobalKey<NavigatorState> _statisticsNavKey =
       GlobalKey<NavigatorState>();
 
+  static const platform = MethodChannel('com.example.mucplay/widget');
+
   // NEU: Navigation State
   int _currentIndex = 0;
 
@@ -68,16 +70,18 @@ class _MainScreenState extends State<MainScreen>
   // NEU: Die Screens, zwischen denen gewechselt wird
   // final List<Widget> _screens = [const LibraryScreen(), const SettingsScreen()];
 
+  void _navigateToSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PlayerThemeSettingsScreen(), // Dein Screen
+      ),
+    );
+  }
+
+  // Deine existierende _handleLoadFromWidget Funktion anpassen
   void _handleLoadFromWidget(Uri? uri) {
-    // Prüfen, ob eine URI da ist und ob sie unser "settings" Ziel hat
     if (uri != null && uri.toString().contains("settings")) {
-      // Manuelle Navigation zum Screen starten
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) =>
-              const PlayerThemeSettingsScreen(), // <--- Hier verweist du auf deinen Screen
-        ),
-      );
+      _navigateToSettings();
     }
   }
 
@@ -103,6 +107,13 @@ class _MainScreenState extends State<MainScreen>
     HomeWidget.registerInteractivityCallback(backgroundCallback);
     HomeWidget.initiallyLaunchedFromHomeWidget().then(_handleLoadFromWidget);
     HomeWidget.widgetClicked.listen(_handleLoadFromWidget);
+
+    platform.setMethodCallHandler((call) async {
+      if (call.method == 'openSettings') {
+        // Hier direkt zu den Settings navigieren
+        _navigateToSettings();
+      }
+    });
 
     _checkConfigurationLaunch();
   }
