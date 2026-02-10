@@ -7,7 +7,7 @@
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
 
-    android:configure="com.example.mucplay.MainActivity"
+    android:configure="com.example.mucplay.WidgetConfigActivity"
     android:widgetFeatures="reconfigurable">
 
 </appwidget-provider>
