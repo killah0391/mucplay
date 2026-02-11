@@ -7,6 +7,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:mucplay/providers/library_provider.dart';
 import 'package:mucplay/providers/selection_provider.dart';
 import 'package:mucplay/providers/theme_provider.dart';
+import 'package:mucplay/settings/screens/home_widget_settings_screen.dart';
 import 'package:mucplay/settings/screens/player_theme_settings_screen.dart';
 import 'package:mucplay/settings/screens/settings_screen.dart';
 import 'package:mucplay/ui/screens/playlists_screen.dart';
@@ -73,7 +74,7 @@ class _MainScreenState extends State<MainScreen>
   void _navigateToSettings() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const PlayerThemeSettingsScreen(), // Dein Screen
+        builder: (context) => const HomeWidgetSettingsScreen(), // Dein Screen
       ),
     );
   }

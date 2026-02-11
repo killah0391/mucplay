@@ -9,6 +9,9 @@ import android.view.KeyEvent
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
+import android.graphics.BitmapFactory
+import android.view.View
+import java.io.File
 
 class MusicWidgetProvider : HomeWidgetProvider() {
 
@@ -49,6 +52,53 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                 // 6. Inhalt setzen
                 setTextViewText(R.id.widget_title, title)
                 setTextViewText(R.id.widget_artist, artist)
+
+// 2. Pfad zum Bild lesen (wird von Flutter gesendet)
+val showCover = widgetData.getBoolean("show_cover", true)
+val coverPath = widgetData.getString("cover_path", null)
+
+if (showCover) {
+    // Sichtbar machen
+    setViewVisibility(R.id.widget_album_art, View.VISIBLE)
+
+    var bitmapSet = false
+
+
+    if (coverPath != null) {
+        val imgFile = File(coverPath)
+        if (imgFile.exists()) {
+            val bitmap = BitmapFactory.decodeFile(imgFile.absolutePath)
+            if (bitmap != null) {
+                setImageViewBitmap(R.id.widget_album_art, bitmap)
+                // WICHTIG: Wenn ein echtes Bild da ist, KEINE Farbe darüberlegen (Filter nullen)
+                setInt(R.id.widget_album_art, "setColorFilter", 0)
+                bitmapSet = true
+            }
+        }
+    }
+
+
+    if (!bitmapSet) {
+        // 1. Icon setzen
+        setImageViewResource(R.id.widget_album_art, R.drawable.ic_music_note)
+
+        // 2. Färben: Wir nehmen die 'onColor' (die Farbe für Text/Titel),
+        // da diese garantiert auf dem Hintergrund lesbar ist.
+        // WICHTIG: "setColorFilter" erwartet oft ARGB.
+        // Falls onColor 0 ist (passiert manchmal bei Fehlern), nimm Weiß als Fallback.
+
+        val safeColor = if (onColor != 0) onColor else -1 // -1 ist Weiß (0xFFFFFFFF)
+
+        setInt(R.id.widget_album_art, "setColorFilter", safeColor)
+
+        // Alternative für manche Android-Versionen, falls setInt zickt:
+        // setInt(R.id.widget_album_art, "setImageAlpha", 255) // Sicherstellen, dass es nicht transparent ist
+    }
+
+} else {
+    // Ausblenden
+    setViewVisibility(R.id.widget_album_art, View.GONE)
+}
 
                 if (isPlaying) {
                     setImageViewResource(R.id.btn_play, R.drawable.ic_pause)

@@ -29,10 +29,21 @@ class MainActivity: AudioServiceActivity() {
     }
 
     private fun handleWidgetAction(intent: Intent) {
-        if (AppWidgetManager.ACTION_APPWIDGET_CONFIGURE == intent.action) {
+        // Prüfen, ob das Signal von unserer WidgetConfigActivity kommt
+        val shouldOpenSettings = intent.getBooleanExtra("navigate_to_settings", false)
+
+        // ODER ob es (theoretisch) direkt vom System käme (Fallback)
+        val isSystemConfigure = AppWidgetManager.ACTION_APPWIDGET_CONFIGURE == intent.action
+
+        if (shouldOpenSettings || isSystemConfigure) {
+
+            // Nachricht an Flutter senden
             flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
                 MethodChannel(messenger, CHANNEL).invokeMethod("openSettings", null)
             }
+
+            // Optional: Extra entfernen, damit es beim Rotieren nicht nochmal feuert
+            intent.removeExtra("navigate_to_settings")
         }
     }
 }

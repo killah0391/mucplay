@@ -577,6 +577,8 @@ class AudioPlayerHandler extends BaseAudioHandler
       artistColorValue = Colors.white70.value;
     }
 
+    final String? artPath = item!.artUri?.toFilePath();
+
     await HomeWidget.saveWidgetData<String>(
       'title',
       item?.title ?? 'Kein Titel',
@@ -585,6 +587,13 @@ class AudioPlayerHandler extends BaseAudioHandler
       'artist',
       item?.artist ?? 'Unbekannt',
     );
+
+    if (artPath != null) {
+      await HomeWidget.saveWidgetData<String>('cover_path', artPath);
+    } else {
+      // Wenn kein Cover, leeren Pfad senden, damit Kotlin das Fallback-Icon nimmt
+      await HomeWidget.saveWidgetData<String>('cover_path', null);
+    }
     await HomeWidget.saveWidgetData<bool>('isPlaying', playing);
 
     await HomeWidget.saveWidgetData<int>('widgetColor', colorValue);

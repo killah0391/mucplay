@@ -1,59 +1,68 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:mucplay/locator.dart';
 import 'package:mucplay/providers/theme_provider.dart';
 import 'package:mucplay/services/audio_handler.dart';
 import 'package:mucplay/settings/widgets/settings_card.dart';
-import 'package:mucplay/settings/widgets/settings_section_header.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
-class PlayerThemeSettingsScreen extends StatelessWidget {
-  const PlayerThemeSettingsScreen({super.key});
+// WICHTIG: Jetzt ein StatefulWidget!
+class HomeWidgetSettingsScreen extends StatefulWidget {
+  const HomeWidgetSettingsScreen({super.key});
+
+  @override
+  State<HomeWidgetSettingsScreen> createState() =>
+      _HomeWidgetSettingsScreenState();
+}
+
+class _HomeWidgetSettingsScreenState extends State<HomeWidgetSettingsScreen> {
+  // Variable für den Schalter
+  bool _showWidgetCover = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Beim Start den gespeicherten Wert laden
+    _loadWidgetSettings();
+  }
+
+  // Lädt die Einstellung "Cover anzeigen" aus den gespeicherten Widget-Daten
+  Future<void> _loadWidgetSettings() async {
+    try {
+      final value = await HomeWidget.getWidgetData<bool>(
+        'show_cover',
+        defaultValue: true,
+      );
+      if (mounted) {
+        setState(() {
+          _showWidgetCover = value ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Fehler beim Laden der Widget-Settings: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ThemeProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text("Design & Farben")),
+      // Transparenter Hintergrund für den "Overlay"-Look (optional, wie vorhin besprochen)
+      backgroundColor: Colors.black.withOpacity(0.85),
+      appBar: AppBar(
+        title: const Text("Widget Einstellungen"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SettingsSectionHeader(title: "Hintergrund", subtitle: ""),
-          SettingsCard(
-            child: SwitchListTile(
-              title: const Text(
-                "Akzentfarbe als Hintergrund nutzen, wenn kein Cover vorhanden",
-              ),
-              // Optional: Erklärung anzeigen, warum es aus ist
-              subtitle: provider.isMonochrome
-                  ? Text(
-                      "Deaktiviert im Monochrom-Modus",
-                      style: TextStyle(color: Theme.of(context).disabledColor),
-                    )
-                  : null,
-
-              // 1. ZWANGS-AUS: Wenn Monochrom an ist, zeigen wir immer "false" (aus) an.
-              // Ansonsten nehmen wir den echten Wert.
-              value: provider.isMonochrome
-                  ? false
-                  : provider.useAccentColorPlayer,
-
-              // 2. DEAKTIVIEREN: Wenn Monochrom an ist, setzen wir onChanged auf null.
-              // Das graut den Switch automatisch aus und verhindert Klicks.
-              onChanged: provider.isMonochrome
-                  ? null
-                  : (val) {
-                      provider.setUseAccentColorPlayer(val);
-                    },
-            ),
-          ),
-          SizedBox(height: 24),
-          SettingsSectionHeader(title: "HOMESCREEN WIDGET", subtitle: ""),
           SettingsCard(
             child: Column(
               children: [
-                Center(
+                const Center(
                   child: Text(
                     "VORSCHAU",
                     style: TextStyle(
@@ -64,14 +73,19 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
+                // Vorschau aktualisieren wir auch mit dem lokalen State
                 _buildWidgetPreview(context, provider),
                 const SizedBox(height: 30),
+
+                // --- Farbschema ---
                 ListTile(
                   title: const Text("Farbschema"),
                   subtitle: Text(_getWidgetModeText(provider)),
                   trailing: DropdownButton<String>(
                     value: _getCurrentMode(provider),
                     underline: Container(),
+                    dropdownColor:
+                        Colors.grey[900], // Damit man das Menü gut sieht
                     items: const [
                       DropdownMenuItem(
                         value: 'app',
@@ -89,13 +103,13 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
                     onChanged: (val) {
                       if (val != null) {
                         provider.setWidgetColorMode(val);
-                        _updateWidgetNow(); // Widget sofort neu laden
+                        _updateWidgetNow();
                       }
                     },
                   ),
                 ),
 
-                // Farbwähler anzeigen, wenn "Benutzerdefiniert" gewählt ist
+                // --- Farbwähler (nur bei Custom) ---
                 if (provider.widgetColorMode == 'custom')
                   ListTile(
                     title: const Text("Farbe wählen"),
@@ -112,6 +126,23 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                // --- Cover Schalter ---
+                SwitchListTile(
+                  title: const Text("Cover im Widget anzeigen"),
+                  value: _showWidgetCover,
+                  onChanged: (bool value) async {
+                    setState(() {
+                      _showWidgetCover = value;
+                    });
+
+                    // Speichern und Senden
+                    await HomeWidget.saveWidgetData<bool>('show_cover', value);
+
+                    // Widget sofort aktualisieren
+                    _updateWidgetNow();
+                  },
+                ),
               ],
             ),
           ),
@@ -120,10 +151,7 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
     );
   }
 
-  // --- HILFSMETHODEN ---
-
   Widget _buildWidgetPreview(BuildContext context, ThemeProvider provider) {
-    // Farben ermitteln (Logik analog zu audio_handler.dart)
     Color bgColor = const Color(0xFF1E1E1E);
     Color contentColor = Colors.white;
 
@@ -139,7 +167,6 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
       }
     }
 
-    // Kontrast
     if (ThemeData.estimateBrightnessForColor(bgColor) == Brightness.light) {
       contentColor = Colors.black;
     }
@@ -151,7 +178,7 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Colors.black26,
             blurRadius: 10,
@@ -161,16 +188,21 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Fake Cover / Icon
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: contentColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.music_note, color: contentColor),
-          ),
+          // Dynamische Vorschau: Zeige Icon oder Platzhalter je nach Switch-State
+          if (_showWidgetCover)
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: contentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.music_note, color: contentColor),
+            )
+          else
+            // Wenn aus, ein leerer Container oder gar nichts (wie im echten Widget)
+            const SizedBox(width: 0),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -181,17 +213,16 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
                   height: 10,
                   width: 80,
                   color: contentColor.withOpacity(0.8),
-                ), // Fake Titel
+                ),
                 const SizedBox(height: 6),
                 Container(
                   height: 8,
                   width: 50,
                   color: contentColor.withOpacity(0.5),
-                ), // Fake Artist
+                ),
               ],
             ),
           ),
-          // Fake Buttons
           Icon(Icons.skip_previous, color: contentColor),
           const SizedBox(width: 10),
           Icon(Icons.play_arrow, color: contentColor, size: 32),
@@ -218,15 +249,21 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
     return provider.widgetColorMode;
   }
 
-  void _updateWidgetNow() {
+  void _updateWidgetNow() async {
     try {
+      // Spezieller Aufruf für HomeWidget Update
+      await HomeWidget.updateWidget(
+        name: 'MusicWidgetProvider',
+        androidName: 'MusicWidgetProvider',
+      );
+
+      // Falls der AudioHandler auch Logik hat, diese auch triggern
       final handler = locator<AudioHandler>();
-      // Casten auf deine Klasse, da updateWidget dort public ist
       if (handler is AudioPlayerHandler) {
         handler.updateWidget();
       }
     } catch (e) {
-      print("Konnte Widget nicht aktualisieren: $e");
+      debugPrint("Konnte Widget nicht aktualisieren: $e");
     }
   }
 
@@ -243,7 +280,6 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
               onColorChanged: (color) {
                 tempColor = color;
               },
-              // Einfache Konfiguration:
               pickerAreaHeightPercent: 0.8,
               enableAlpha: false,
               displayThumbColor: true,
@@ -259,7 +295,7 @@ class PlayerThemeSettingsScreen extends StatelessWidget {
               child: const Text("Speichern"),
               onPressed: () {
                 provider.setWidgetCustomColor(tempColor);
-                _updateWidgetNow(); // Sofort aktualisieren
+                _updateWidgetNow();
                 Navigator.of(context).pop();
               },
             ),
