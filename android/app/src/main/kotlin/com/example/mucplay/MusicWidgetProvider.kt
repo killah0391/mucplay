@@ -12,6 +12,7 @@ import es.antonborri.home_widget.HomeWidgetProvider
 import android.graphics.BitmapFactory
 import android.view.View
 import java.io.File
+import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 
 class MusicWidgetProvider : HomeWidgetProvider() {
 
@@ -22,6 +23,17 @@ class MusicWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences
     ) {
         appWidgetIds.forEach { widgetId ->
+
+        val showShuffle = widgetData.getBoolean("show_widget_shuffle", false)
+            val showRepeat = widgetData.getBoolean("show_widget_repeat", false)
+
+            // Wenn einer der Buttons an ist -> Vertikales Layout, sonst Standard
+            val layoutId = if (showShuffle || showRepeat) {
+                R.layout.widget_music_vertical
+            } else {
+                R.layout.widget_music
+            }
+
             val views = RemoteViews(context.packageName, R.layout.widget_music).apply {
 
                 // 1. Daten laden
@@ -100,6 +112,37 @@ if (showCover) {
     setViewVisibility(R.id.widget_album_art, View.GONE)
 }
 
+if (layoutId == R.layout.widget_music_vertical) {
+                    // Sichtbarkeit
+                    setViewVisibility(R.id.btn_shuffle, if (showShuffle) View.VISIBLE else View.GONE)
+                    setViewVisibility(R.id.btn_repeat, if (showRepeat) View.VISIBLE else View.GONE)
+
+                    // Status laden (Aktiv oder nicht?)
+                    val shuffleActive = widgetData.getBoolean("shuffle_active", false)
+                    val repeatMode = widgetData.getString("repeat_mode", "none") // "none", "all", "one"
+
+                    // Farbe bestimmen (Aktiv = Accent/Color, Inaktiv = onColor)
+                    // Da wir im Widget oft Darkmode nutzen, ist die aktive Farbe oft 'color' (wenn user custom gewählt hat)
+                    // oder wir nehmen eine feste Signalfarbe. Hier nehmen wir einfach die entgegengesetzte Farbe oder Deckkraft.
+
+                    // Option A: Aktive Buttons voll sichtbar, inaktive transparent
+                    // Option B: Aktive Buttons in "ArtistColor" (oft grau) vs "onColor" (weiß)
+                    // Wir machen es einfach: Aktiv = onColor (Weiß), Inaktiv = ArtistColor (Grau/Transparent)
+
+                    val activeColor = onColor
+                    val inactiveColor = artistColor // Etwas dunkler/transparent
+
+                    setInt(R.id.btn_shuffle, "setColorFilter", if (shuffleActive) activeColor else inactiveColor)
+                    setInt(R.id.btn_repeat, "setColorFilter", if (repeatMode != "none") activeColor else inactiveColor)
+
+                    // Click Listener (Senden an Dart via Background Intent)
+                    val shuffleIntent = HomeWidgetBackgroundIntent.getBroadcast(context, android.net.Uri.parse("mucplay://shuffle"))
+                    setOnClickPendingIntent(R.id.btn_shuffle, shuffleIntent)
+
+                    val repeatIntent = HomeWidgetBackgroundIntent.getBroadcast(context, android.net.Uri.parse("mucplay://repeat"))
+                    setOnClickPendingIntent(R.id.btn_repeat, repeatIntent)
+                }
+
                 if (isPlaying) {
                     setImageViewResource(R.id.btn_play, R.drawable.ic_pause)
                 } else {
@@ -124,7 +167,7 @@ if (showCover) {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
 
-                setOnClickPendingIntent(R.id.widget_title, openAppPendingIntent)
+                setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent)
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)

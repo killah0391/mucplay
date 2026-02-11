@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/material.dart'; // WICHTIG: Für ColorScheme & Colors
+import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:mucplay/locator.dart';
 import 'package:volume_controller/volume_controller.dart';
@@ -37,15 +37,18 @@ class AudioPlayerHandler extends BaseAudioHandler
   Duration _currentPosition = Duration.zero;
   List<MediaItem> _originalQueue = [];
 
-  // Subscriptions speichern
   StreamSubscription? _noisySub;
   StreamSubscription? _interruptionSub;
+
+  late Future<void> _initFuture;
 
   AudioPlayerHandler() {
     _currentPlayer = _player1;
     _initPlayers();
     _initVolumeListener();
     _initAudioSession();
+
+    _initFuture = _loadLastState();
   }
 
   static const _closeControl = MediaControl(
@@ -54,6 +57,170 @@ class AudioPlayerHandler extends BaseAudioHandler
     action: MediaAction.stop,
   );
 
+  // --- HILFSMETHODE: MediaItem erstellen ---
+  MediaItem _createMediaItem(SongModel song) {
+    return MediaItem(
+      id: song.path,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: Duration(milliseconds: song.durationMs),
+      artUri: song.artUri != null ? Uri.file(song.artUri!) : null,
+      extras: {'path': song.path, 'format': song.format},
+    );
+  }
+
+  // --- LAST STATE LOADING (Warteschlange & Song) ---
+  Future<void> _loadLastState() async {
+    try {
+      final settingsBox = locator<Box>(instanceName: 'settings');
+      final lastPath = settingsBox.get('last_played_path') as String?;
+      final lastPosMs = settingsBox.get('last_played_position') as int? ?? 0;
+
+      // NEU: Queue laden
+      final lastQueuePaths =
+          (settingsBox.get('last_queue') as List?)?.cast<String>() ?? [];
+
+      final songBox = locator<Box<SongModel>>();
+      List<MediaItem> restoredQueue = [];
+
+      // 1. Warteschlange rekonstruieren
+      if (lastQueuePaths.isNotEmpty) {
+        for (final path in lastQueuePaths) {
+          // Song aus DB suchen (effizienter als einzeln)
+          final song = songBox.values.firstWhere(
+            (s) => s.path == path,
+            orElse: () => SongModel(
+              path: '',
+              title: '',
+              artist: '',
+              album: '',
+              durationMs: 0,
+              format: '',
+              genre: 'Unknown',
+            ),
+          );
+
+          if (song.path.isNotEmpty) {
+            restoredQueue.add(_createMediaItem(song));
+          }
+        }
+      }
+
+      // Fallback: Wenn Queue leer war, aber ein Song gespeichert ist -> Queue = [Song]
+      if (restoredQueue.isEmpty && lastPath != null) {
+        final song = songBox.values.firstWhere(
+          (s) => s.path == lastPath,
+          orElse: () => SongModel(
+            path: '',
+            title: '',
+            artist: '',
+            album: '',
+            durationMs: 0,
+            format: '',
+            genre: 'Unknown',
+          ),
+        );
+        if (song.path.isNotEmpty) {
+          restoredQueue.add(_createMediaItem(song));
+        }
+      }
+
+      // 2. Anwenden
+      if (restoredQueue.isNotEmpty) {
+        queue.add(restoredQueue); // Queue setzen
+
+        // Richtigen Song in der Queue finden
+        MediaItem? currentItem;
+        if (lastPath != null) {
+          currentItem = restoredQueue.firstWhere(
+            (item) => item.id == lastPath,
+            orElse: () => restoredQueue.first,
+          );
+        } else {
+          currentItem = restoredQueue.first;
+        }
+
+        mediaItem.add(currentItem);
+        _currentPosition = Duration(milliseconds: lastPosMs);
+
+        // Player vorbereiten
+        await _currentPlayer.setSource(
+          DeviceFileSource(currentItem.extras!['path'] as String),
+        );
+        await _currentPlayer.seek(_currentPosition);
+
+        // State senden (Index berechnen)
+        final index = restoredQueue.indexOf(currentItem);
+
+        playbackState.add(
+          playbackState.value.copyWith(
+            playing: false,
+            processingState: AudioProcessingState.ready,
+            updatePosition: _currentPosition,
+            queueIndex: index, // Wichtig für Next/Prev Logik
+            controls: [
+              MediaControl.skipToPrevious,
+              MediaControl.play,
+              MediaControl.skipToNext,
+              _closeControl,
+            ],
+            systemActions: const {
+              MediaAction.seek,
+              MediaAction.seekForward,
+              MediaAction.seekBackward,
+            },
+            androidCompactActionIndices: const [0, 1, 2],
+          ),
+        );
+
+        updateWidget();
+      }
+    } catch (e) {
+      print("Fehler beim Laden des letzten Zustands: $e");
+    }
+  }
+
+  // --- STATE SAVING (Warteschlange & Song) ---
+  Future<void> _saveLastState() async {
+    final settingsBox = locator<Box>(instanceName: 'settings');
+
+    // 1. Aktuellen Song speichern
+    final item = mediaItem.value;
+    if (item != null) {
+      final currentPath = item.extras?['path'];
+      if (currentPath != null) {
+        await settingsBox.put('last_played_path', currentPath);
+
+        // Position nur speichern, wenn Player aktiv, sonst alte behalten
+        try {
+          final pos = await _currentPlayer.getCurrentPosition();
+          if (pos != null) {
+            await settingsBox.put('last_played_position', pos.inMilliseconds);
+          } else {
+            await settingsBox.put(
+              'last_played_position',
+              _currentPosition.inMilliseconds,
+            );
+          }
+        } catch (_) {
+          await settingsBox.put(
+            'last_played_position',
+            _currentPosition.inMilliseconds,
+          );
+        }
+      }
+    }
+
+    // 2. Warteschlange speichern (NEU)
+    // Wir speichern die Pfade (IDs) der aktuellen Queue
+    if (queue.value.isNotEmpty) {
+      final queuePaths = queue.value.map((i) => i.id).toList();
+      await settingsBox.put('last_queue', queuePaths);
+    }
+  }
+
+  // ... (InitPlayers, VolumeListener, AudioSession etc. bleiben gleich) ...
   void _initPlayers() {
     final AudioContext audioContext = AudioContext(
       iOS: AudioContextIOS(
@@ -115,13 +282,10 @@ class AudioPlayerHandler extends BaseAudioHandler
   void _monitorCrossfade(Duration pos) {
     final item = mediaItem.value;
     if (item?.duration == null || !_crossfadeEnabled || _isCrossfading) return;
-
     final remaining = item!.duration! - pos;
-
     if (remaining.inSeconds <= _crossfadeDurationSec) {
       _isCrossfading = true;
       _recordPlayback();
-
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.one) {
         final currentIndex = queue.value.indexWhere((i) => i.id == item.id);
         if (currentIndex != -1) _playIndex(currentIndex);
@@ -151,13 +315,11 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> _initAudioSession() async {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
-
     _noisySub?.cancel();
     _noisySub = session.becomingNoisyEventStream.listen((_) {
       print("Gerät getrennt -> PAUSE");
       pause();
     });
-
     _interruptionSub?.cancel();
     _interruptionSub = session.interruptionEventStream.listen((event) {
       if (event.begin) {
@@ -175,9 +337,7 @@ class AudioPlayerHandler extends BaseAudioHandler
           case AudioInterruptionType.duck:
             _currentPlayer.setVolume(1.0);
             break;
-          case AudioInterruptionType.pause:
-            break;
-          case AudioInterruptionType.unknown:
+          default:
             break;
         }
       }
@@ -190,22 +350,17 @@ class AudioPlayerHandler extends BaseAudioHandler
       'statisticsMode',
       defaultValue: false,
     );
-
     if (!statsEnabled) return;
-
     final currentItem = mediaItem.value;
     if (currentItem == null) return;
-
     final path = currentItem.extras?['path'];
     if (path == null) return;
-
     try {
       final songBox = locator<Box<SongModel>>();
       final song = songBox.values.firstWhere(
         (s) => s.path == path,
         orElse: () => throw Exception("Song nicht in DB gefunden"),
       );
-
       song.playHistory.add(DateTime.now());
       await song.save();
     } catch (e) {
@@ -213,6 +368,7 @@ class AudioPlayerHandler extends BaseAudioHandler
     }
   }
 
+  // --- HIER NEU: Speichern beim Ändern der Queue ---
   @override
   Future<void> updateQueue(List<MediaItem> newQueue) async {
     if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all) {
@@ -220,18 +376,19 @@ class AudioPlayerHandler extends BaseAudioHandler
     }
     _originalQueue = List.from(newQueue);
     await super.updateQueue(newQueue);
+
+    // Wichtig: Queue speichern!
+    _saveLastState();
   }
 
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     final currentMode = playbackState.value.shuffleMode;
     if (currentMode == shuffleMode) return;
-
     if (shuffleMode == AudioServiceShuffleMode.all) {
       if (queue.value.isNotEmpty) {
         _originalQueue = List.from(queue.value);
         final shuffled = List<MediaItem>.from(queue.value)..shuffle();
-
         final currentId = mediaItem.value?.id;
         if (currentId != null) {
           shuffled.removeWhere((item) => item.id == currentId);
@@ -247,17 +404,20 @@ class AudioPlayerHandler extends BaseAudioHandler
         queue.add(List.from(_originalQueue));
       }
     }
-
     playbackState.add(
       playbackState.value.copyWith(
         shuffleMode: shuffleMode,
         updatePosition: _currentPosition,
       ),
     );
+
+    // Wichtig: Queue (die jetzt geshuffelt ist) speichern
+    _saveLastState();
   }
 
   @override
   Future<void> skipToNext() async {
+    await _initFuture;
     if (queue.value.isEmpty) return;
     final currentIndex = queue.value.indexWhere(
       (item) => item.id == mediaItem.value?.id,
@@ -268,6 +428,7 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   @override
   Future<void> skipToPrevious() async {
+    await _initFuture;
     if (_currentPosition.inSeconds > 3) {
       seek(Duration.zero);
     } else {
@@ -283,45 +444,47 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   @override
   Future<void> play() async {
+    await _initFuture;
+    if (mediaItem.value == null) {
+      if (queue.value.isNotEmpty) {
+        await _playIndex(0);
+        return;
+      }
+      return;
+    }
     final session = await AudioSession.instance;
     await session.setActive(true);
-
-    await _currentPlayer.resume();
+    try {
+      await _currentPlayer.resume();
+    } catch (e) {
+      if (queue.value.isNotEmpty) {
+        final index = queue.value.indexWhere(
+          (i) => i.id == mediaItem.value?.id,
+        );
+        if (index != -1) await _playIndex(index);
+      }
+      return;
+    }
     _broadcastState(isPlaying: true);
+    _saveLastState();
   }
 
   @override
   Future<void> pause() async {
     _crossfadeTimer?.cancel();
     _isCrossfading = false;
-
     final pos = await _currentPlayer.getCurrentPosition();
     if (pos != null) _currentPosition = pos;
-
     await _player1.pause();
     await _player2.pause();
-
     await _currentPlayer.setVolume(1.0);
-
+    _saveLastState();
     _broadcastState(isPlaying: false);
   }
 
   @override
   Future<void> stop() async {
-    _crossfadeTimer?.cancel();
-    _noisySub?.cancel();
-    _interruptionSub?.cancel();
-
-    final pos = await _currentPlayer.getCurrentPosition();
-    if (pos != null) _currentPosition = pos;
-
-    await _player1.pause();
-    await _player2.pause();
-
-    await _currentPlayer.setVolume(1.0);
-
-    _broadcastState(isPlaying: false);
-
+    await pause();
     super.stop();
   }
 
@@ -336,6 +499,8 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> addQueueItem(MediaItem mediaItem) async {
     final newQueue = queue.value..add(mediaItem);
     queue.add(newQueue);
+    // Wichtig: Queue speichern!
+    _saveLastState();
   }
 
   @override
@@ -347,23 +512,20 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> _playIndex(int index) async {
     _isCrossfading = false;
     _crossfadeTimer?.cancel();
-
     final item = queue.value[index];
     mediaItem.add(item);
     _currentPosition = Duration.zero;
     _broadcastState(isPlaying: true);
-
+    _saveLastState();
     final String path = item.extras!['path'] as String;
-
     try {
       final session = await AudioSession.instance;
       await session.setActive(true);
-
       if (_crossfadeEnabled) {
         await _performCrossfade(path);
       } else {
         await _currentPlayer.stop();
-        await _currentPlayer.setSource(UrlSource(Uri.file(path).toString()));
+        await _currentPlayer.setSource(DeviceFileSource(path));
         await _currentPlayer.seek(Duration.zero);
         await _currentPlayer.resume();
       }
@@ -376,22 +538,18 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> _performCrossfade(String nextFilePath) async {
     final nextPlayer = (_currentPlayer == _player1) ? _player2 : _player1;
     final fadingPlayer = _currentPlayer;
-
     _currentPlayer = nextPlayer;
-
     try {
       await nextPlayer.stop();
       await nextPlayer.setVolume(0);
-      await nextPlayer.setSource(UrlSource(Uri.file(nextFilePath).toString()));
+      await nextPlayer.setSource(DeviceFileSource(nextFilePath));
       await nextPlayer.seek(Duration.zero);
       await nextPlayer.resume();
-
       const steps = 20;
       final stepDuration = Duration(
         milliseconds: (_crossfadeDurationSec * 1000) ~/ steps,
       );
       double vol = 0.0;
-
       _crossfadeTimer?.cancel();
       _crossfadeTimer = Timer.periodic(stepDuration, (timer) {
         vol += 1.0 / steps;
@@ -422,6 +580,12 @@ class AudioPlayerHandler extends BaseAudioHandler
   }
 
   void _broadcastState({bool? isPlaying}) {
+    // Aktuellen Index berechnen
+    int queueIndex = 0;
+    if (mediaItem.value != null && queue.value.isNotEmpty) {
+      queueIndex = queue.value.indexWhere((i) => i.id == mediaItem.value!.id);
+    }
+
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
@@ -442,9 +606,10 @@ class AudioPlayerHandler extends BaseAudioHandler
         playing: isPlaying ?? playbackState.value.playing,
         updatePosition: _currentPosition,
         processingState: AudioProcessingState.ready,
+        queueIndex: queueIndex, // Index mitgeben!
       ),
     );
-    updateWidget(); // Update bei Statusänderung
+    updateWidget();
   }
 
   @override
@@ -460,25 +625,20 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> playNext(List<MediaItem> items) async {
     final currentQueue = queue.value;
     final currentItem = mediaItem.value;
-
     if (currentQueue.isEmpty) {
       await updateQueue(items);
       await play();
       return;
     }
-
     final currentIndex = currentQueue.indexWhere(
       (i) => i.id == currentItem?.id,
     );
-
     final insertIndex = (currentIndex >= 0)
         ? currentIndex + 1
         : currentQueue.length;
-
     final newQueue = List<MediaItem>.from(currentQueue);
     newQueue.insertAll(insertIndex, items);
     queue.add(newQueue);
-
     if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all) {
       final originalIndex = _originalQueue.indexWhere(
         (i) => i.id == currentItem?.id,
@@ -490,6 +650,8 @@ class AudioPlayerHandler extends BaseAudioHandler
     } else {
       _originalQueue = List.from(newQueue);
     }
+    // Wichtig: Speichern
+    _saveLastState();
   }
 
   void moveQueueItem(int oldIndex, int newIndex) {
@@ -503,28 +665,33 @@ class AudioPlayerHandler extends BaseAudioHandler
     final item = newQueue.removeAt(oldIndex);
     newQueue.insert(newIndex, item);
     queue.add(newQueue);
+    // Wichtig: Speichern
+    _saveLastState();
   }
 
   // --- WIDGET UPDATE ---
-  // In lib/services/audio_handler.dart
-
   Future<void> updateWidget() async {
     final item = mediaItem.value;
     final playing = playbackState.value.playing;
-
     final settingsBox = locator<Box>(instanceName: 'settings');
-
     final String mode = settingsBox.get(
       'widget_color_mode',
       defaultValue: 'app',
     );
+    final shuffleMode = playbackState.value.shuffleMode;
+    final repeatMode = playbackState.value.repeatMode;
 
+    // await HomeWidget.saveWidgetData<bool>(
+    //   'shuffle_active',
+    //   shuffleMode == AudioServiceShuffleMode.all,
+    // );
+    // // Wir speichern den Namen des Enums ("none", "one", "all")
+    // await HomeWidget.saveWidgetData<String>('repeat_mode', repeatMode.name);
     int colorValue;
     int onColorValue;
     int artistColorValue;
 
     if (mode == 'custom') {
-      // 1. CUSTOM MODE
       colorValue = settingsBox.get(
         'widget_custom_color',
         defaultValue: 0xFF1E1E1E,
@@ -536,7 +703,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       onColorValue = isDark ? Colors.white.value : Colors.black.value;
       artistColorValue = isDark ? Colors.white70.value : Colors.black54.value;
     } else if (mode == 'app') {
-      // 2. APP MODE
       final int accentColorInt = settingsBox.get(
         'accent_color',
         defaultValue: 0xFF2196F3,
@@ -545,11 +711,8 @@ class AudioPlayerHandler extends BaseAudioHandler
         'force_bold_colors',
         defaultValue: false,
       );
-
       if (forceBold) {
-        // OPTION AN (Kräftig): Hintergrund = Akzentfarbe
         colorValue = accentColorInt;
-
         final brightness = ThemeData.estimateBrightnessForColor(
           Color(colorValue),
         );
@@ -557,27 +720,19 @@ class AudioPlayerHandler extends BaseAudioHandler
         onColorValue = isDark ? Colors.white.value : Colors.black.value;
         artistColorValue = isDark ? Colors.white70.value : Colors.black54.value;
       } else {
-        // OPTION AUS (Dezent): Hintergrund = Dunkelgrau, Icons = Akzentfarbe
         final scheme = ColorScheme.fromSeed(
           seedColor: Color(accentColorInt),
           brightness: Brightness.dark,
         );
-
-        // FIX: Hintergrund ist dunkel (Surface), nicht Primary!
         colorValue = const Color(0xFF1E1E1E).value;
-
-        // FIX: Icons sind farbig (Primary)
         onColorValue = scheme.primary.value;
         artistColorValue = scheme.primary.withOpacity(0.7).value;
       }
     } else {
-      // 3. DARK / STANDARD
       colorValue = 0xFF1E1E1E;
       onColorValue = Colors.white.value;
       artistColorValue = Colors.white70.value;
     }
-
-    final String? artPath = item!.artUri?.toFilePath();
 
     await HomeWidget.saveWidgetData<String>(
       'title',
@@ -587,18 +742,27 @@ class AudioPlayerHandler extends BaseAudioHandler
       'artist',
       item?.artist ?? 'Unbekannt',
     );
-
-    if (artPath != null) {
-      await HomeWidget.saveWidgetData<String>('cover_path', artPath);
-    } else {
-      // Wenn kein Cover, leeren Pfad senden, damit Kotlin das Fallback-Icon nimmt
-      await HomeWidget.saveWidgetData<String>('cover_path', null);
-    }
     await HomeWidget.saveWidgetData<bool>('isPlaying', playing);
-
     await HomeWidget.saveWidgetData<int>('widgetColor', colorValue);
     await HomeWidget.saveWidgetData<int>('widgetOnColor', onColorValue);
     await HomeWidget.saveWidgetData<int>('widgetArtistColor', artistColorValue);
+    await HomeWidget.saveWidgetData<bool>(
+      'shuffle_active',
+      shuffleMode == AudioServiceShuffleMode.all,
+    );
+    // Wir speichern den Namen des Enums ("none", "one", "all")
+    await HomeWidget.saveWidgetData<String>('repeat_mode', repeatMode.name);
+
+    if (item?.artUri != null && item!.artUri!.isScheme('file')) {
+      await HomeWidget.saveWidgetData<String>(
+        'cover_path',
+        item.artUri!.toFilePath(),
+      );
+      await HomeWidget.saveWidgetData<bool>('show_cover', true);
+    } else {
+      await HomeWidget.saveWidgetData<String?>('cover_path', null);
+      await HomeWidget.saveWidgetData<bool>('show_cover', true);
+    }
 
     await HomeWidget.updateWidget(
       name: 'MusicWidgetProvider',

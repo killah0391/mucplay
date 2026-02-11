@@ -20,6 +20,8 @@ class HomeWidgetSettingsScreen extends StatefulWidget {
 class _HomeWidgetSettingsScreenState extends State<HomeWidgetSettingsScreen> {
   // Variable für den Schalter
   bool _showWidgetCover = true;
+  bool _showWidgetShuffle = false;
+  bool _showWidgetRepeat = false;
 
   @override
   void initState() {
@@ -35,9 +37,19 @@ class _HomeWidgetSettingsScreenState extends State<HomeWidgetSettingsScreen> {
         'show_cover',
         defaultValue: true,
       );
+      final sShuffle = await HomeWidget.getWidgetData<bool>(
+        'show_widget_shuffle',
+        defaultValue: false,
+      );
+      final sRepeat = await HomeWidget.getWidgetData<bool>(
+        'show_widget_repeat',
+        defaultValue: false,
+      );
       if (mounted) {
         setState(() {
           _showWidgetCover = value ?? true;
+          _showWidgetShuffle = sShuffle ?? false;
+          _showWidgetRepeat = sRepeat ?? false;
         });
       }
     } catch (e) {
@@ -140,6 +152,31 @@ class _HomeWidgetSettingsScreenState extends State<HomeWidgetSettingsScreen> {
                     await HomeWidget.saveWidgetData<bool>('show_cover', value);
 
                     // Widget sofort aktualisieren
+                    _updateWidgetNow();
+                  },
+                ),
+                SwitchListTile(
+                  title: const Text("Shuffle Button anzeigen"),
+                  value: _showWidgetShuffle,
+                  onChanged: (val) async {
+                    setState(() => _showWidgetShuffle = val);
+                    await HomeWidget.saveWidgetData<bool>(
+                      'show_widget_shuffle',
+                      val,
+                    );
+                    _updateWidgetNow();
+                  },
+                ),
+
+                SwitchListTile(
+                  title: const Text("Repeat Button anzeigen"),
+                  value: _showWidgetRepeat,
+                  onChanged: (val) async {
+                    setState(() => _showWidgetRepeat = val);
+                    await HomeWidget.saveWidgetData<bool>(
+                      'show_widget_repeat',
+                      val,
+                    );
                     _updateWidgetNow();
                   },
                 ),
