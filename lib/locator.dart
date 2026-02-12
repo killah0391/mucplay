@@ -8,9 +8,30 @@ import 'models/song_model.dart';
 
 final GetIt locator = GetIt.instance;
 
+// Flag um zu prüfen ob Hive bereits initialisiert wurde
+bool _hiveInitialized = false;
+
 Future<void> setupLocator() async {
-  // 1. Hive initialisieren
-  await Hive.initFlutter();
+  // WICHTIG: Überprüfe zuerst, ob die Box bereits initialisiert ist
+  // Das ist zuverlässiger als ein globales Flag, das nicht zwischen Isolates geteilt wird
+  if (locator.isRegistered<Box<SongModel>>()) {
+    print("DEBUG: Locator already initialized, skipping setup");
+    return;
+  }
+
+  print("DEBUG: Initializing Locator...");
+
+  // 1. Hive initialisieren (nur wenn noch nicht geschehen)
+  try {
+    if (!_hiveInitialized) {
+      await Hive.initFlutter();
+      _hiveInitialized = true;
+      print("DEBUG: Hive initialized");
+    }
+  } catch (e) {
+    print("DEBUG: Hive already initialized or error: $e");
+    _hiveInitialized = true;
+  }
 
   // Adapter registrieren (nachdem build_runner lief)
   Hive.registerAdapter(SongModelAdapter());
@@ -22,21 +43,29 @@ Future<void> setupLocator() async {
   final playlistBox = await Hive.openBox<PlaylistModel>('playlists');
 
   // 2. Services registrieren
-  // Hier registrieren wir später den AudioHandler und SettingsService
   locator.registerSingleton<Box<SongModel>>(songBox);
   locator.registerSingleton<Box>(settingsBox, instanceName: 'settings');
   locator.registerSingleton<LibraryService>(LibraryService());
   locator.registerSingleton<Box<PlaylistModel>>(playlistBox);
 
-  final audioHandler = await AudioService.init(
-    builder: () => AudioPlayerHandler(),
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.mucplay.channel.audio',
-      androidNotificationChannelName: 'Music Player',
-      androidNotificationOngoing: true,
-    ),
-  );
+  // 3. AudioHandler initialisieren
+  // WICHTIG: AudioService.init() wird nur aufgerufen wenn AudioHandler noch nicht registriert ist
+  // Das verhindert mehrfache Instanzen, da GetIt.isRegistered() zuverlässiger ist als globale Flags
+  if (!locator.isRegistered<AudioHandler>()) {
+    print("DEBUG: Initializing AudioService...");
+    final audioHandler = await AudioService.init(
+      builder: () => AudioPlayerHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.example.mucplay.channel.audio',
+        androidNotificationChannelName: 'Music Player',
+        androidNotificationOngoing: true,
+      ),
+    );
+    locator.registerSingleton<AudioHandler>(audioHandler);
+    print("DEBUG: AudioService initialized");
+  } else {
+    print("DEBUG: AudioService already initialized, using existing handler");
+  }
 
-  locator.registerSingleton<AudioHandler>(audioHandler);
-  // locator.registerSingleton<AudioHandler>(await initAudioService());
+  print("DEBUG: Locator initialization complete");
 }

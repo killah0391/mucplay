@@ -60,8 +60,6 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                 setInt(R.id.btn_prev, "setColorFilter", onColor)
                 setInt(R.id.btn_play, "setColorFilter", onColor)
                 setInt(R.id.btn_next, "setColorFilter", onColor)
-
-                // 6. Inhalt setzen
                 setTextViewText(R.id.widget_title, title)
                 setTextViewText(R.id.widget_artist, artist)
 
@@ -121,25 +119,43 @@ if (layoutId == R.layout.widget_music_vertical) {
                     val shuffleActive = widgetData.getBoolean("shuffle_active", false)
                     val repeatMode = widgetData.getString("repeat_mode", "none") // "none", "all", "one"
 
-                    // Farbe bestimmen (Aktiv = Accent/Color, Inaktiv = onColor)
-                    // Da wir im Widget oft Darkmode nutzen, ist die aktive Farbe oft 'color' (wenn user custom gewählt hat)
-                    // oder wir nehmen eine feste Signalfarbe. Hier nehmen wir einfach die entgegengesetzte Farbe oder Deckkraft.
-
-                    // Option A: Aktive Buttons voll sichtbar, inaktive transparent
-                    // Option B: Aktive Buttons in "ArtistColor" (oft grau) vs "onColor" (weiß)
-                    // Wir machen es einfach: Aktiv = onColor (Weiß), Inaktiv = ArtistColor (Grau/Transparent)
+                    // Farbe bestimmen (Aktiv oder nicht?)
+                    // Aktive Buttons: onColor (Weiß)
+                    // Inaktive Buttons: artistColor (grau/transparent)
 
                     val activeColor = onColor
                     val inactiveColor = artistColor // Etwas dunkler/transparent
 
+                    // Shuffle-Button färben
                     setInt(R.id.btn_shuffle, "setColorFilter", if (shuffleActive) activeColor else inactiveColor)
-                    setInt(R.id.btn_repeat, "setColorFilter", if (repeatMode != "none") activeColor else inactiveColor)
+
+                    // Repeat-Button Icon und Farbe setzen basierend auf Mode
+                    when (repeatMode) {
+                        "one" -> {
+                            // Repeat One Mode - anderes Icon
+                            setImageViewResource(R.id.btn_repeat, R.drawable.ic_repeat_one)
+                            setInt(R.id.btn_repeat, "setColorFilter", activeColor)
+                        }
+                        "all" -> {
+                            // Repeat All Mode
+                            setImageViewResource(R.id.btn_repeat, R.drawable.ic_repeat)
+                            setInt(R.id.btn_repeat, "setColorFilter", activeColor)
+                        }
+                        else -> {
+                            // None Mode
+                            setImageViewResource(R.id.btn_repeat, R.drawable.ic_repeat)
+                            setInt(R.id.btn_repeat, "setColorFilter", inactiveColor)
+                        }
+                    }
 
                     // Click Listener (Senden an Dart via Background Intent)
-                    val shuffleIntent = HomeWidgetBackgroundIntent.getBroadcast(context, android.net.Uri.parse("mucplay://shuffle"))
+                    // Verwende dynamische URIs mit Timestamp um Caching zu vermeiden
+                    val shuffleUri = android.net.Uri.parse("mucplay://shuffle?t=${System.currentTimeMillis()}")
+                    val shuffleIntent = HomeWidgetBackgroundIntent.getBroadcast(context, shuffleUri)
                     setOnClickPendingIntent(R.id.btn_shuffle, shuffleIntent)
 
-                    val repeatIntent = HomeWidgetBackgroundIntent.getBroadcast(context, android.net.Uri.parse("mucplay://repeat"))
+                    val repeatUri = android.net.Uri.parse("mucplay://repeat?t=${System.currentTimeMillis()}")
+                    val repeatIntent = HomeWidgetBackgroundIntent.getBroadcast(context, repeatUri)
                     setOnClickPendingIntent(R.id.btn_repeat, repeatIntent)
                 }
 

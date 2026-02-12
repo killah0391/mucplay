@@ -19,47 +19,7 @@ import '../../locator.dart';
 import 'library_screen.dart';
 import 'full_player_screen.dart';
 import '../widgets/mini_player.dart';
-
-@pragma('vm:entry-point')
-Future<void> backgroundCallback(Uri? uri) async {
-  if (uri?.host == 'shuffle') {
-    // Wir verbinden uns mit dem AudioService (da er im Hintergrund läuft)
-    // AudioService exportiert statische Methoden, die mit dem Isolate kommunizieren.
-    // Wir müssen nicht locator nutzen, wenn wir nur Commands senden.
-
-    // Aktuellen Modus herausfinden ist im Background schwer ohne State.
-    // Wir senden einfach "Toggle". Da AudioHandler Logik hat, nutzen wir customAction
-    // oder wir versuchen den Locator zu holen (Vorsicht!).
-
-    // Sicherste Variante für HomeWidget + AudioService:
-    // Wir nutzen die Hilfsmethode setupLocator() nur, wenn wir Zugriff auf Hive brauchen.
-    // Aber für Audio Steuerung nutzen wir den AudioService Client.
-
-    // Da wir den aktuellen Shuffle-Status nicht kennen, müssen wir ihn toggeln.
-    // Das ist über reine Commands ("SetShuffleMode") schwer blind zu machen.
-
-    // Workaround: Wir gehen davon aus, dass der Handler läuft.
-    await setupLocator(); // Initialisiert Hive etc. (Muss idempotent sein!)
-    final handler = locator<AudioHandler>();
-
-    final current = handler.playbackState.value.shuffleMode;
-    final next = current == AudioServiceShuffleMode.all
-        ? AudioServiceShuffleMode.none
-        : AudioServiceShuffleMode.all;
-    await handler.setShuffleMode(next);
-  } else if (uri?.host == 'repeat') {
-    await setupLocator();
-    final handler = locator<AudioHandler>();
-
-    final current = handler.playbackState.value.repeatMode;
-    final next = current == AudioServiceRepeatMode.none
-        ? AudioServiceRepeatMode.all
-        : (current == AudioServiceRepeatMode.all
-              ? AudioServiceRepeatMode.one
-              : AudioServiceRepeatMode.none);
-    await handler.setRepeatMode(next);
-  }
-}
+import '../../main.dart' show backgroundCallback;
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});

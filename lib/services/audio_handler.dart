@@ -42,6 +42,13 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   late Future<void> _initFuture;
 
+  // --- DEBOUNCING VARIABLEN FÜR WIDGET UPDATES ---
+  Timer? _shuffleUpdateDebounce;
+  Timer? _repeatUpdateDebounce;
+  DateTime _lastShuffleUpdate = DateTime.now();
+  DateTime _lastRepeatUpdate = DateTime.now();
+  static const _debounceMs = 300; // Millisekunden zuwarten vor Update
+
   AudioPlayerHandler() {
     _currentPlayer = _player1;
     _initPlayers();
@@ -413,6 +420,9 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     // Wichtig: Queue (die jetzt geshuffelt ist) speichern
     _saveLastState();
+
+    // Widget nur mit neuen Shuffle-Status updaten (nicht komplett neu zeichnen)
+    await _updateWidgetShuffleState(shuffleMode);
   }
 
   @override
@@ -620,6 +630,9 @@ class AudioPlayerHandler extends BaseAudioHandler
         updatePosition: _currentPosition,
       ),
     );
+
+    // Widget nur mit neuem Repeat-Status updaten (nicht komplett neu zeichnen)
+    await _updateWidgetRepeatState(repeatMode);
   }
 
   Future<void> playNext(List<MediaItem> items) async {
@@ -681,12 +694,13 @@ class AudioPlayerHandler extends BaseAudioHandler
     final shuffleMode = playbackState.value.shuffleMode;
     final repeatMode = playbackState.value.repeatMode;
 
-    // await HomeWidget.saveWidgetData<bool>(
-    //   'shuffle_active',
-    //   shuffleMode == AudioServiceShuffleMode.all,
-    // );
-    // // Wir speichern den Namen des Enums ("none", "one", "all")
-    // await HomeWidget.saveWidgetData<String>('repeat_mode', repeatMode.name);
+    // Speichere Shuffle- und Repeat-Status für das Widget
+    await HomeWidget.saveWidgetData<bool>(
+      'shuffle_active',
+      shuffleMode == AudioServiceShuffleMode.all,
+    );
+    // Wir speichern den Namen des Enums ("none", "one", "all")
+    await HomeWidget.saveWidgetData<String>('repeat_mode', repeatMode.name);
     int colorValue;
     int onColorValue;
     int artistColorValue;
@@ -768,5 +782,83 @@ class AudioPlayerHandler extends BaseAudioHandler
       name: 'MusicWidgetProvider',
       androidName: 'MusicWidgetProvider',
     );
+  }
+
+  // --- OPTIMIERTE WIDGET UPDATES (nur Status, kein kompletter Redraw) ---
+  Future<void> _updateWidgetShuffleState(
+    AudioServiceShuffleMode shuffleMode,
+  ) async {
+    try {
+      // Speichern (ohne zu warten)
+      await HomeWidget.saveWidgetData<bool>(
+        'shuffle_active',
+        shuffleMode == AudioServiceShuffleMode.all,
+      );
+
+      // Debounce: Update nur wenn 300ms seit letztem Update vergangen sind
+      _shuffleUpdateDebounce?.cancel();
+      _shuffleUpdateDebounce = Timer(
+        const Duration(milliseconds: _debounceMs),
+        () async {
+          final now = DateTime.now();
+          final timeSinceLastUpdate = now
+              .difference(_lastShuffleUpdate)
+              .inMilliseconds;
+
+          if (timeSinceLastUpdate >= _debounceMs) {
+            _lastShuffleUpdate = now;
+            print("DEBUG: Shuffle widget updated (debounce)");
+
+            try {
+              await HomeWidget.updateWidget(
+                name: 'MusicWidgetProvider',
+                androidName: 'MusicWidgetProvider',
+              );
+            } catch (e) {
+              print("Fehler beim Shuffle Widget Update: $e");
+            }
+          }
+        },
+      );
+    } catch (e) {
+      print("Fehler beim Shuffle Widget Speichern: $e");
+    }
+  }
+
+  Future<void> _updateWidgetRepeatState(
+    AudioServiceRepeatMode repeatMode,
+  ) async {
+    try {
+      // Speichern (ohne zu warten)
+      await HomeWidget.saveWidgetData<String>('repeat_mode', repeatMode.name);
+
+      // Debounce: Update nur wenn 300ms seit letztem Update vergangen sind
+      _repeatUpdateDebounce?.cancel();
+      _repeatUpdateDebounce = Timer(
+        const Duration(milliseconds: _debounceMs),
+        () async {
+          final now = DateTime.now();
+          final timeSinceLastUpdate = now
+              .difference(_lastRepeatUpdate)
+              .inMilliseconds;
+
+          if (timeSinceLastUpdate >= _debounceMs) {
+            _lastRepeatUpdate = now;
+            print("DEBUG: Repeat widget updated (debounce)");
+
+            try {
+              await HomeWidget.updateWidget(
+                name: 'MusicWidgetProvider',
+                androidName: 'MusicWidgetProvider',
+              );
+            } catch (e) {
+              print("Fehler beim Repeat Widget Update: $e");
+            }
+          }
+        },
+      );
+    } catch (e) {
+      print("Fehler beim Repeat Widget Speichern: $e");
+    }
   }
 }

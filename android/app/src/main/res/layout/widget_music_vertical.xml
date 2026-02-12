@@ -32,6 +32,7 @@
                 android:layout_marginEnd="12dp"
                 android:src="@drawable/ic_music_note"
                 android:scaleType="fitCenter"
+                android:contentDescription="Cover"
                 android:visibility="gone" />
 
             <LinearLayout
@@ -79,7 +80,11 @@
                 android:visibility="gone"
                 tools:ignore="UseAppTint" />
 
-            <Space android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1"/>
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:visibility="invisible" />
 
             <ImageButton
                 android:id="@+id/btn_prev"
@@ -90,7 +95,10 @@
                 android:tint="#FFFFFF"
                 tools:ignore="UseAppTint" />
 
-            <Space android:layout_width="16dp" android:layout_height="0dp" />
+            <TextView
+                android:layout_width="16dp"
+                android:layout_height="0dp"
+                android:visibility="invisible" />
 
             <ImageButton
                 android:id="@+id/btn_play"
@@ -102,7 +110,10 @@
                 android:scaleType="fitCenter"
                 tools:ignore="UseAppTint" />
 
-            <Space android:layout_width="16dp" android:layout_height="0dp" />
+            <TextView
+                android:layout_width="16dp"
+                android:layout_height="0dp"
+                android:visibility="invisible" />
 
             <ImageButton
                 android:id="@+id/btn_next"
@@ -113,7 +124,11 @@
                 android:tint="#FFFFFF"
                 tools:ignore="UseAppTint" />
 
-            <Space android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1"/>
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:visibility="invisible" />
 
             <ImageButton
                 android:id="@+id/btn_repeat"
