@@ -34,7 +34,7 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                 R.layout.widget_music
             }
 
-            val views = RemoteViews(context.packageName, R.layout.widget_music).apply {
+            val views = RemoteViews(context.packageName, layoutId).apply {
 
                 // 1. Daten laden
                 val title = widgetData.getString("title", "Kein Titel")
