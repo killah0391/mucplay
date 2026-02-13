@@ -861,4 +861,37 @@ class AudioPlayerHandler extends BaseAudioHandler
       print("Fehler beim Repeat Widget Speichern: $e");
     }
   }
+
+  @override
+  Future<void> fastForward() async {
+    await toggleShuffle();
+  }
+
+  // WICHTIG: Widget sendet Rewind -> Wir schalten Repeat um
+  @override
+  Future<void> rewind() async {
+    await toggleRepeat();
+  }
+
+  // Hilfsmethoden (falls noch nicht vorhanden):
+  Future<void> toggleShuffle() async {
+    // Falls nötig: await _initFuture;
+    final enable =
+        playbackState.value.shuffleMode != AudioServiceShuffleMode.all;
+    await setShuffleMode(
+      enable ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
+    );
+    // updateWidget() wird in setShuffleMode aufgerufen
+  }
+
+  Future<void> toggleRepeat() async {
+    // Falls nötig: await _initFuture;
+    final current = playbackState.value.repeatMode;
+    final next = current == AudioServiceRepeatMode.none
+        ? AudioServiceRepeatMode.all
+        : (current == AudioServiceRepeatMode.all
+              ? AudioServiceRepeatMode.one
+              : AudioServiceRepeatMode.none);
+    await setRepeatMode(next);
+  }
 }

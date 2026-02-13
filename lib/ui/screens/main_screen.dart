@@ -19,7 +19,7 @@ import '../../locator.dart';
 import 'library_screen.dart';
 import 'full_player_screen.dart';
 import '../widgets/mini_player.dart';
-import '../../main.dart' show backgroundCallback;
+import '../../main.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -86,7 +86,7 @@ class _MainScreenState extends State<MainScreen>
         _playerController.reverse();
       }
     });
-    HomeWidget.registerInteractivityCallback(backgroundCallback);
+    // HomeWidget.registerInteractivityCallback(backgroundCallback);
     HomeWidget.initiallyLaunchedFromHomeWidget().then(_handleLoadFromWidget);
     HomeWidget.widgetClicked.listen(_handleLoadFromWidget);
 

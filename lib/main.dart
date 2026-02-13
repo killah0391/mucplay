@@ -14,54 +14,54 @@ import 'package:provider/provider.dart';
 import 'locator.dart';
 import 'ui/screens/main_screen.dart';
 
-@pragma('vm:entry-point')
-Future<void> backgroundCallback(Uri? uri) async {
-  print("🎵 HomeWidget Callback: $uri");
+// @pragma('vm:entry-point')
+// Future<void> backgroundCallback(Uri? uri) async {
+//   print("🎵 HomeWidget Callback: $uri");
 
-  try {
-    if (uri == null) return;
+//   try {
+//     if (uri == null) return;
 
-    print("DEBUG: Processing widget intent - host: ${uri.host}");
+//     print("DEBUG: Processing widget intent - host: ${uri.host}");
 
-    // setupLocator mit globalem Flag verhindert mehrfache AudioService.init() Aufrufe
-    await setupLocator();
-    final handler = locator<AudioHandler>();
+//     // setupLocator mit globalem Flag verhindert mehrfache AudioService.init() Aufrufe
+//     await setupLocator();
+//     final handler = locator<AudioHandler>();
 
-    // Kleine Verzögerung um sicherzustellen dass Handler ein Running ist
-    await Future.delayed(const Duration(milliseconds: 200));
+//     // Kleine Verzögerung um sicherzustellen dass Handler ein Running ist
+//     await Future.delayed(const Duration(milliseconds: 200));
 
-    if (uri.host == 'shuffle') {
-      print("DEBUG: Handling SHUFFLE");
-      final current = handler.playbackState.value.shuffleMode;
-      print("DEBUG: Current shuffle: $current");
+//     if (uri.host == 'shuffle') {
+//       print("DEBUG: Handling SHUFFLE");
+//       final current = handler.playbackState.value.shuffleMode;
+//       print("DEBUG: Current shuffle: $current");
 
-      final next = current == AudioServiceShuffleMode.all
-          ? AudioServiceShuffleMode.none
-          : AudioServiceShuffleMode.all;
+//       final next = current == AudioServiceShuffleMode.all
+//           ? AudioServiceShuffleMode.none
+//           : AudioServiceShuffleMode.all;
 
-      print("DEBUG: Setting shuffle to: $next");
-      await handler.setShuffleMode(next);
-      print("✓ Shuffle updated");
-    } else if (uri.host == 'repeat') {
-      print("DEBUG: Handling REPEAT");
-      final current = handler.playbackState.value.repeatMode;
-      print("DEBUG: Current repeat: $current");
+//       print("DEBUG: Setting shuffle to: $next");
+//       await handler.setShuffleMode(next);
+//       print("✓ Shuffle updated");
+//     } else if (uri.host == 'repeat') {
+//       print("DEBUG: Handling REPEAT");
+//       final current = handler.playbackState.value.repeatMode;
+//       print("DEBUG: Current repeat: $current");
 
-      final next = current == AudioServiceRepeatMode.none
-          ? AudioServiceRepeatMode.all
-          : (current == AudioServiceRepeatMode.all
-                ? AudioServiceRepeatMode.one
-                : AudioServiceRepeatMode.none);
+//       final next = current == AudioServiceRepeatMode.none
+//           ? AudioServiceRepeatMode.all
+//           : (current == AudioServiceRepeatMode.all
+//                 ? AudioServiceRepeatMode.one
+//                 : AudioServiceRepeatMode.none);
 
-      print("DEBUG: Setting repeat to: $next");
-      await handler.setRepeatMode(next);
-      print("✓ Repeat updated");
-    }
-  } catch (e, stack) {
-    print("❌ Error in widget callback: $e");
-    print("Stack: $stack");
-  }
-}
+//       print("DEBUG: Setting repeat to: $next");
+//       await handler.setRepeatMode(next);
+//       print("✓ Repeat updated");
+//     }
+//   } catch (e, stack) {
+//     print("❌ Error in widget callback: $e");
+//     print("Stack: $stack");
+//   }
+// }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
